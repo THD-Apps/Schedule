@@ -373,7 +373,7 @@
 			</div>
 		</div>
 	{:else}
-		<div class="mb-2 flex justify-center">
+		<div class="mb-2 mt-4 flex justify-center">
 			<img
 				width="90"
 				height="90"
