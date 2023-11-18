@@ -4,6 +4,8 @@
 
 	let finishedData = null;
 	let loading = false;
+	let dates = [];
+	let selectedDate = false;
 
 	let reportDate = '';
 	let reportUser = '';
@@ -13,202 +15,6 @@
 		setTimeout(() => {
 			processFile(event);
 		}, 1000);
-	}
-
-	function removeDuplicateRows(jsonData) {
-		const uniqueRows = new Set();
-
-		// Filter out duplicates
-		const filteredData = jsonData.filter((row) => {
-			const rowString = JSON.stringify(row);
-			if (uniqueRows.has(rowString)) {
-				// Duplicate, return false to filter it out
-				return false;
-			} else {
-				// Unique, add to the set and return true to keep it
-				uniqueRows.add(rowString);
-				return true;
-			}
-		});
-
-		return filteredData;
-	}
-
-	function reorganizeData(jsonData) {
-		const chunkRanges = [
-			{ start: 0, end: 49 },
-			{ start: 50, end: 95 },
-			{ start: 96, end: 146 },
-			{ start: 147, end: 197 }
-		];
-
-		const reorderedData = [];
-
-		for (const range of chunkRanges) {
-			const chunkData = jsonData.slice(range.start, range.end + 1);
-			const chunkRows1 = [];
-			const chunkRows2 = [];
-
-			for (const row of chunkData) {
-				// First 10 columns
-				const chunkRow1 = [];
-				for (let col = 0; col < 10; col++) {
-					chunkRow1.push(row[col]);
-				}
-				chunkRows1.push(chunkRow1);
-
-				// Columns 12-18
-				const chunkRow2 = [];
-				for (let col = 11; col < 18; col++) {
-					chunkRow2.push(row[col]);
-				}
-				chunkRows2.push(chunkRow2);
-			}
-
-			reorderedData.push(chunkRows1, chunkRows2);
-		}
-
-		// Flatten the array of arrays
-		return reorderedData.flat();
-	}
-
-	function findColumn6Value(jsonData) {
-		const foundRow = jsonData.find((row) => row[3] === 'Printed for :');
-
-		if (foundRow) {
-			const column6Value = foundRow[5];
-			return column6Value;
-		} else {
-			return 'Unknown';
-		}
-	}
-
-	function updateColumn0ForPattern(jsonData) {
-		const updatedData = jsonData.map((row) => {
-			// Check if column 2 matches the specified pattern
-			if (/^\d{3} -/.test(row[1])) {
-				// If yes, update column 0 to "DEPT"
-				row[0] = 'DEPT';
-			}
-			return row;
-		});
-
-		return updatedData;
-	}
-
-	function updateColumn0ForEquality(jsonData) {
-		const updatedData = jsonData.map((row) => {
-			// Check if columns 2, 3, 4, and 5 are the same and column 0 is not "DEPT"
-			if (row[0] !== 'DEPT' && row[1] === row[2] && row[2] === row[3] && row[3] === row[4]) {
-				// If yes, update column 0 to "JOB"
-				row[0] = 'JOB';
-			}
-			return row;
-		});
-
-		return updatedData;
-	}
-
-	function unnestRichText(jsonData) {
-		const unnestedData = jsonData.map((row) => row.map((cell) => unnestCell(cell)));
-		return unnestedData;
-	}
-
-	function unnestCell(cell) {
-		if (cell && typeof cell === 'object' && 'richText' in cell) {
-			// If the cell is an object with 'richText' property, unnest it
-			return unnestRichTextValue(cell.richText);
-		}
-		return cell;
-	}
-
-	function unnestRichTextValue(richText) {
-		return richText.map((segment) => segment.text).join('');
-	}
-
-	function changeFirstColumnShifts(jsonData) {
-		const modifiedData = jsonData.map((row) => {
-			// Check if the row has 7 columns and column 3 contains a time range pattern
-			if (row.length === 10 && /\d{1,2}:\d{2}(AM|PM)-\d{1,2}:\d{2}(AM|PM)/.test(row[4])) {
-				// Update column 0 to "SHIFT"
-				row[0] = 'SHIFT';
-				row[1] = row[1];
-				// Update column 1 to the value of column 5
-				row[2] = row[4];
-				row[3] = row[7];
-				// Keep only columns 0, 1, and 2
-				return row.slice(0, 4);
-			}
-			return row;
-		});
-
-		return modifiedData;
-	}
-
-	function changeSecondColumnShifts(jsonData) {
-		const modifiedData = jsonData.map((row) => {
-			// Check if the row has 7 columns and column 3 contains a time range pattern
-			if (row.length === 7 && /\d{1,2}:\d{2}(AM|PM)-\d{1,2}:\d{2}(AM|PM)/.test(row[2])) {
-				// Update column 0 to "SHIFT"
-				row[0] = 'SHIFT';
-				row[1] = row[1];
-				// Update column 1 to the value of column 5
-				row[2] = row[2];
-				row[3] = row[4];
-				// Keep only columns 0, 1, and 2
-				return row.slice(0, 4);
-			}
-			return row;
-		});
-
-		return modifiedData;
-	}
-
-	function filterRows(jsonData) {
-		const filteredData = jsonData.filter((row) => {
-			const firstColumnValue = row[0];
-			return (
-				firstColumnValue === 'SHIFT' || firstColumnValue === 'DEPT' || firstColumnValue === 'JOB'
-			);
-		});
-
-		return filteredData;
-	}
-
-	function nestData(jsonData) {
-		let nestedData = [];
-		let currentDept = null;
-		let currentJob = null;
-
-		for (const row of jsonData) {
-			const type = row[0];
-
-			if (type === 'DEPT') {
-				// New department, reset currentJob
-				currentDept = { name: row[1], jobs: [] };
-				currentJob = null;
-				nestedData.push({ ...row, ...currentDept });
-			} else if (type === 'JOB') {
-				// New job, reset currentJob
-				currentJob = { name: row[1], shifts: [] };
-				currentDept.jobs.push({ ...row, ...currentJob });
-			} else if (type === 'SHIFT') {
-				// New shift, add to currentJob or create a default "Associate" job if there is no currentJob
-				if (currentJob) {
-					currentJob.shifts.push({ time: row[2], ...row });
-				} else {
-					currentJob = { name: 'Associate', shifts: [{ time: row[2], ...row }] };
-					currentDept.jobs.push(currentJob);
-				}
-			}
-		}
-
-		// Remove jobs with no children
-		nestedData = nestedData.filter(
-			(item) => item[0] === 'DEPT' || item[0] === 'JOB' || item[0] === 'SHIFT'
-		);
-
-		return nestedData;
 	}
 
 	function convertToMilitaryTime(timeString) {
@@ -236,6 +42,27 @@
 		return timeString;
 	}
 
+	function week(jsonData) {
+		for (const key in jsonData) {
+			const element = jsonData[key];
+
+			// Check if the properties match the conditions
+			if (
+				element['1'] === 'Name' &&
+				element['2'] === 'Name' &&
+				element['3'] === 'Name' &&
+				element['5'] === 'Hours' &&
+				element['6'] === 'Hours' &&
+				element['7'] === 'Hours'
+			) {
+				return element;
+			}
+		}
+
+		// Return null if no matching element is found
+		return null;
+	}
+
 	function processFile(event) {
 		const file = event.target.files[0];
 
@@ -259,29 +86,146 @@
 					});
 					jsonData.push(rowJson);
 				});
-				jsonData = reorganizeData(jsonData);
-				jsonData = removeDuplicateRows(jsonData);
-				reportDate = jsonData[1][3].substring(0, 10);
-				reportUser = findColumn6Value(jsonData);
-				jsonData = updateColumn0ForPattern(jsonData);
-				jsonData = updateColumn0ForEquality(jsonData);
-				jsonData = unnestRichText(jsonData);
-				jsonData = changeSecondColumnShifts(jsonData);
-				jsonData = changeFirstColumnShifts(jsonData);
-				jsonData = filterRows(jsonData);
-				jsonData = jsonData.slice(1);
-				jsonData = nestData(jsonData);
-				const foundItem = jsonData.find((item) => item[1] === '096 - Lot');
 
-				// If the item is found, filter the jobs property
-				if (foundItem) {
-					foundItem.jobs = foundItem.jobs.filter((job) => {
-						const property1Value = job[1] ?? job.name;
-						return property1Value === 'Associate' || property1Value === 'Facility';
-					});
-				}
-				console.log(jsonData);
-				finishedData = jsonData;
+				reportUser = jsonData[2]['19'];
+				dates = [
+					week(jsonData)['8'].richText[0].text,
+					week(jsonData)['11'].richText[0].text,
+					week(jsonData)['13'].richText[0].text,
+					week(jsonData)['15'].richText[0].text,
+					week(jsonData)['16'].richText[0].text,
+					week(jsonData)['19'].richText[0].text,
+					week(jsonData)['20'].richText[0].text
+				];
+				Object.keys(jsonData).forEach((key) => {
+					const e = jsonData[key];
+
+					if (
+						e['1'] === 'Name' &&
+						e['2'] === 'Name' &&
+						e['3'] === 'Name' &&
+						e['5'] === 'Hours' &&
+						e['6'] === 'Hours' &&
+						e['7'] === 'Hours'
+					) {
+						delete jsonData[key];
+					}
+				});
+				Object.keys(jsonData).forEach((key) => {
+					const e = jsonData[key];
+
+					if (
+						e['1'] == 'Time Period :' ||
+						e['1'] == 'Query :' ||
+						e['1'] == 'Currency Code :' ||
+						e['1'] == 'Group Forecast' ||
+						e['1'] == 'Fcst.' ||
+						e['1'] == 'Sched.' ||
+						e['1'] == 'O/U hours' ||
+						e['1'] == 'SvF%' ||
+						e['10'] == null ||
+						e['4'] == 'Error' ||
+						(e['1'] == '' && e['5'] > 0) ||
+						e['5'] == 0
+					) {
+						delete jsonData[key];
+					}
+				});
+
+				let dept = '';
+				let shifts = [];
+				Object.keys(jsonData).forEach((key) => {
+					const e = jsonData[key];
+					if (typeof e['8'] === 'string' && e['8'].startsWith('Store')) {
+						dept = e['8'].split('Dept:')[1];
+					} else {
+						const emp = e['1'].richText[0].text;
+						const dayStrings = ['8', '11', '13', '15', '16', '19', '20'];
+						for (var i = 0; i < 7; i++) {
+							if (e[dayStrings[i]] != '') {
+								let shift = false;
+								let lunch = false;
+								let task = false;
+								let job = false;
+								e[dayStrings[i]].richText.forEach((seg) => {
+									if (seg.font.color.argb != 'FFC0C0C0') {
+										if (
+											(seg.font.size == 5 && /^[0-9]/.test(seg.text)) ||
+											seg.text.startsWith('Hrs')
+										) {
+											if (shift) {
+												const shiftArray = {
+													employee: emp,
+													department: dept,
+													shift: shift,
+													lunch: lunch,
+													task: task,
+													job: job,
+													day: dates[i],
+													start: convertToMilitaryTime(shift.split('-')[0])
+												};
+												shifts = [...shifts, shiftArray];
+												shift = false;
+												lunch = false;
+												task = false;
+												job = false;
+											}
+											if (!seg.text.startsWith('Hrs')) {
+												shift = seg.text;
+											}
+										} else {
+											if (
+												!seg.text.startsWith('\\') &&
+												!seg.text.startsWith('(') &&
+												isNaN(seg.text.charAt(0))
+											) {
+												if (seg.font.color.argb == 'FF000000') {
+													job = seg.text;
+												} else task = seg.text;
+											} else if (seg.text.startsWith('(')) {
+												lunch = seg.text.split('(M) ')[1];
+											}
+										}
+									}
+								});
+							}
+						}
+					}
+				});
+				const sortedData = shifts.sort((a, b) => {
+					// Compare by start time
+					const startComparison = a.start.localeCompare(b.start);
+					if (startComparison !== 0) {
+						return startComparison;
+					}
+
+					// If start times are the same, compare by employee name
+					return a.employee.localeCompare(b.employee);
+				});
+				// Initialize the nested object
+				const nestedDataObject = {};
+
+				// Iterate through the sorted array and build the nested structure
+				sortedData.forEach((item) => {
+					const { day, department, job } = item;
+
+					// Create or update the nested structure
+					nestedDataObject[day] = nestedDataObject[day] || {};
+					nestedDataObject[day][department] = nestedDataObject[day][department] || {};
+					nestedDataObject[day][department][job] = nestedDataObject[day][department][job] || [];
+					nestedDataObject[day][department][job].push(item);
+				});
+
+				const today = new Date();
+				let dayOfWeek = today.getDay() - 1; // 0 for Monday, 6 for Sunday
+
+				// Adjust for Sunday (which should be 6)
+				dayOfWeek = dayOfWeek === -1 ? 6 : dayOfWeek;
+
+				selectedDate = dates[dayOfWeek];
+				console.log(sortedData);
+				console.log(nestedDataObject);
+				finishedData = nestedDataObject;
 				loading = false;
 			};
 
@@ -297,7 +241,7 @@
 		</div>
 		<div class="hamster text-[200px]">🐹</div>
 	{:else if finishedData}
-		<div class="flex justify-center screen-only">
+		<div class="flex justify-center items-center screen-only">
 			<div class="w-2/5 grid grid-cols-2 gap-3">
 				<div
 					class="cursor-pointer text-white my-3 bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm w-50 py-2.5 text-center mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
@@ -313,60 +257,79 @@
 				</div>
 			</div>
 		</div>
-		<div class="header mx-[30%] print:mx-0">
+		<div class="screen-only my-3">
+			<select
+				class="h-[35px] mt-auto border-2 border-blue-500"
+				style="font-size:25px !important;"
+				bind:value={selectedDate}
+				name="sel"
+				id="sel"
+			>
+				{#each dates as item}
+					<option value={item}>{item}</option>
+				{/each}
+			</select>
+		</div>
+		<div class="header mx-[20%] print:mx-0">
 			<div class="grid grid-cols-3 text-[14px] mb-3">
-				<div class="text-left">Date: {moment(reportDate).format('dddd, MMMM Do YYYY')}</div>
+				<div class="text-left">Date: {selectedDate}</div>
 				<div class="font-bold">Store Coverage by Day</div>
 				<div class="text-right">Generated By: {reportUser}</div>
 			</div>
 		</div>
-		<div class="text-[18px] print:text-[10px] mx-[30%] print:mx-0" id="display-area">
+		<div class="text-[18px] print:text-[10px] mx-[20%] print:mx-0" id="display-area">
 			<div class="text-left">
-				{#each finishedData as department}
-					<div class="column-break" class:mb-[15px]={department.jobs.length}>
-						{#if department.jobs.length}
-							<div class="border border-black bg-gray-800 text-white text-center font-bold">
-								<!-- DEPARTMENT NAME -->
-								{department[1]}
-							</div>
-						{/if}
-
-						{#each department.jobs as job}
-							{#if job.shifts.length}
-								{#if department.jobs.length > 1}
-									<!-- JOB TITLE -->
-									<div
-										class="border- border-r border-b border-black bg-gray-400 text-center font-bold"
-									>
-										{job.name ?? job[1]}
-									</div>
-								{/if}
-								{#each job.shifts as shift}
-									<div class="grid grid-cols-9 border-b border-black">
-										<div class="px-2 border-l border-black uppercase col-span-3">{shift[1]}</div>
-										<div class="px-2 border-l border-black uppercase col-span-3">
-											{moment('2023-12-12 ' + convertToMilitaryTime(shift[2].split('-')[0])).format(
-												'hh:mm A'
-											) +
-												' - ' +
-												moment(
-													'2023-12-12 ' + convertToMilitaryTime(shift[2].split('-')[1])
-												).format('hh:mm A')}
-										</div>
-										<div class="px-2 border-l border-black border-r uppercase col-span-3">
-											{shift[3]
-												? moment(
-														'2023-12-12 ' + convertToMilitaryTime(shift[3].split('-')[0])
-												  ).format('hh:mm A') +
-												  ' - ' +
-												  moment(
-														'2023-12-12 ' + convertToMilitaryTime(shift[3].split('-')[1])
-												  ).format('hh:mm A')
-												: ''}
-										</div>
-									</div>
-								{/each}
+				{#each Object.keys(finishedData[selectedDate]).sort() as department}
+					<div class="column-break mb-15px">
+						<div class="border border-black bg-gray-800 text-white text-center font-bold">
+							{department}
+						</div>
+						{#each Object.keys(finishedData[selectedDate][department]) as job}
+							{#if job != 'Associate'}
+								<div
+									class="border-l border-r border-b border-black bg-gray-400 text-center font-bold"
+								>
+									{job}
+								</div>
 							{/if}
+							{#each finishedData[selectedDate][department][job] as shift}
+								<div class="flex flex-row border-b border-black overflow-hidden whitespace-nowrap">
+									<div
+										class="overflow-hidden whitespace-nowrap px-1 w-[20%] border-l border-black uppercase"
+									>
+										{shift.employee}
+									</div>
+									<div
+										class="overflow-hidden whitespace-nowrap px-1 w-[30%] border-l border-black uppercase"
+									>
+										{moment(
+											'2023-12-12 ' + convertToMilitaryTime(shift.shift.split('-')[0])
+										).format('hh:mm A') +
+											' - ' +
+											moment(
+												'2023-12-12 ' + convertToMilitaryTime(shift.shift.split('-')[1])
+											).format('hh:mm A')}
+									</div>
+									<div
+										class="overflow-hidden whitespace-nowrap px-1 w-[30%] border-l border-black uppercase"
+									>
+										{shift.lunch
+											? moment(
+													'2023-12-12 ' + convertToMilitaryTime(shift.lunch.split('-')[0])
+											  ).format('hh:mm A') +
+											  ' - ' +
+											  moment(
+													'2023-12-12 ' + convertToMilitaryTime(shift.lunch.split('-')[1])
+											  ).format('hh:mm A')
+											: ''}
+									</div>
+									<div
+										class="overflow-hidden whitespace-nowrap px-1 w-[20%] border-l border-black border-r uppercase"
+									>
+										{shift.task == false ? '' : shift.task}
+									</div>
+								</div>
+							{/each}
 						{/each}
 					</div>
 				{/each}
@@ -397,6 +360,9 @@
 </div>
 
 <style>
+	* {
+		font-family: 'PT Sans Narrow', sans-serif;
+	}
 	.hamster {
 		display: inline-block;
 		animation: bounce 1s ease-in-out infinite;
@@ -420,10 +386,19 @@
 		.print-only {
 			display: none;
 		}
+		* {
+			font-size: 18px !important;
+		}
+		.hamster {
+			font-size: 200px !important;
+		}
 	}
 	@media print {
 		.screen-only {
 			display: none;
+		}
+		* {
+			font-size: 9px !important;
 		}
 	}
 	@media print {
