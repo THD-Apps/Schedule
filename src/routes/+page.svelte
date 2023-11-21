@@ -279,7 +279,7 @@
 		</div>
 		<div class="screen-only my-3">
 			<select
-				class="h-[45px] md:h-[35px] mt-auto border-2 border-blue-500 w-full md:w-auto mx-3"
+				class="h-[55px] mt-auto border-2 border-blue-500 w-[95%] mx-[2.2%] p-2 md:w-auto"
 				style="font-size:25px !important;"
 				bind:value={selectedDate}
 				name="sel"
@@ -300,7 +300,7 @@
 		<div class="text-[22px] print:text-[10px] mx-3 md:mx-[30%]" id="display-area">
 			<div class="text-left">
 				{#each Object.keys(finishedData[selectedDate]).sort() as department}
-					<div class="column-break mb-[15px] w-full">
+					<div class="column-break mb-[15px]">
 						<div class="border border-black bg-gray-800 text-white text-center font-bold">
 							{department}
 						</div>
