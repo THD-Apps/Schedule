@@ -373,7 +373,7 @@
 			</div>
 		</div>
 
-		<div class="text-xl text-orange-400 mt-3 mx-3">
+		<div class="text-xl text-orange-400 mt-3 mb-1 mx-3">
 			Upload .xlsx Dimensions Store Coverage By Day above to continue...
 		</div>
 	{/if}
